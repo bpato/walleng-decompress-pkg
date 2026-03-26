@@ -50,6 +50,7 @@ Features:
 - Configurable output directory
 - Progress indication during extraction
 - Cross-platform (Windows, macOS, Linux)
+- Multi-language support (English, Spanish)
 
 ### Command Line
 
@@ -111,7 +112,11 @@ The `.pkg` format structure:
 │       ├── __init__.py
 │       ├── core.py         # Core extraction logic
 │       ├── cli.py          # Command-line interface
-│       └── gui.py          # Graphical interface (PySide6)
+│       ├── gui.py          # Graphical interface (PySide6)
+│       ├── i18n.py         # Internationalization module
+│       └── translations/   # Language files
+│           ├── en.json     # English
+│           └── es.json     # Spanish
 └── tests/
     └── test_core.py        # Unit tests
 ```
