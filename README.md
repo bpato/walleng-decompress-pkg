@@ -38,6 +38,8 @@ pytest
 
 ### Graphical Interface
 
+![GUI Screenshot](assets/gui.png)
+
 ```bash
 walleng-pkg-gui
 ```
@@ -102,6 +104,8 @@ The `.pkg` format structure:
 ├── pyproject.toml          # Package configuration
 ├── README.md
 ├── .gitignore
+├── assets/
+│   └── gui.png             # GUI screenshot
 ├── src/
 │   └── walleng_pkg/
 │       ├── __init__.py
