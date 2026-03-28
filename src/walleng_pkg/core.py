@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
+from walleng_pkg.tex import extract_textures as extract_tex_textures
+
 
 @dataclass
 class FileEntry:
@@ -85,13 +87,14 @@ def create_directory_tree(info: PackageInfo, output_dir: Path) -> None:
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def extract_files(info: PackageInfo, package_path: Path, output_dir: Path) -> list[Path]:
+def extract_files(info: PackageInfo, package_path: Path, output_dir: Path, extract_tex: bool = False) -> list[Path]:
     """Extract all files from a package.
     
     Args:
         info: Parsed package information.
         package_path: Path to the source .pkg file.
         output_dir: Base directory to extract into.
+        extract_tex: If True, extract PNG textures from .tex files.
         
     Returns:
         List of paths to extracted files.
@@ -112,16 +115,24 @@ def extract_files(info: PackageInfo, package_path: Path, output_dir: Path) -> li
                     out_file.write(data)
                 
                 extracted.append(file_path)
+                
+                if extract_tex and file_path.suffix.lower() == ".tex":
+                    try:
+                        tex_extracted = extract_tex_textures(file_path)
+                        extracted.extend(tex_extracted)
+                    except Exception:
+                        pass
     
     return extracted
 
 
-def extract_package(package_path: Path, output_dir: Path | None = None) -> list[Path]:
+def extract_package(package_path: Path, output_dir: Path | None = None, extract_tex: bool = False) -> list[Path]:
     """Extract all files from a Wallpaper Engine .pkg package.
     
     Args:
         package_path: Path to the .pkg file.
         output_dir: Optional output directory. Defaults to current directory.
+        extract_tex: If True, extract PNG textures from .tex files.
         
     Returns:
         List of paths to extracted files.
@@ -133,4 +144,4 @@ def extract_package(package_path: Path, output_dir: Path | None = None) -> list[
     
     info = parse_package(package_path)
     create_directory_tree(info, output_dir)
-    return extract_files(info, package_path, output_dir)
+    return extract_files(info, package_path, output_dir, extract_tex)
