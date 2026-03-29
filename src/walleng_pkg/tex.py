@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 import struct
 from dataclasses import dataclass
 from enum import Enum
@@ -10,6 +12,21 @@ from pathlib import Path
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 JPG_SIGNATURE = b"\xFF\xD8\xFF"
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal and invalid characters."""
+    filename = os.path.basename(filename)
+    filename = re.sub(r'[^\w\-.]', '_', filename)
+    return filename[:255]
+
+
+def sanitize_extension(ext: str) -> str:
+    """Validate and sanitize file extension."""
+    ext = ext.lower().strip('.')
+    if not re.match(r'^[a-z0-9]+$', ext):
+        ext = 'bin'
+    return ext
 
 
 class TextureFormat(Enum):
@@ -220,23 +237,31 @@ def parse_tex_package(pathfile: Path) -> TexInfo:
     )
 
 
-def extract_textures(tex_path: Path, output_dir: Path | None = None) -> list[Path]:
+def extract_textures(tex_path: Path, output_dir: Path | None = None, overwrite: bool = False) -> list[Path]:
     """Extract all textures from a TEX file."""
     if output_dir is None:
         output_dir = tex_path.parent
     else:
         output_dir = Path(output_dir)
     
+    output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     
     info = parse_tex_package(tex_path)
     
     extracted: list[Path] = []
-    base_name = tex_path.stem
+    base_name = sanitize_filename(tex_path.stem)
     
     for i, texture in enumerate(info.textures):
         ext = texture.format.value
-        output_path = output_dir / f"{base_name}_{texture.width}x{texture.height}.{ext}"
+        safe_ext = sanitize_extension(ext)
+        output_path = (output_dir / f"{base_name}_{texture.width}x{texture.height}.{safe_ext}").resolve()
+        
+        if not str(output_path).startswith(str(output_dir)):
+            raise ValueError(f"Invalid output path: {output_path}")
+        
+        if not overwrite and output_path.exists():
+            continue
         
         with open(output_path, "wb") as f:
             f.write(texture.data)
@@ -256,25 +281,32 @@ def extract_jpg_textures(tex_path: Path, output_dir: Path | None = None) -> list
     return extract_textures_by_format(tex_path, output_dir, TextureFormat.JPG)
 
 
-def extract_textures_by_format(tex_path: Path, output_dir: Path | None = None, target_format: TextureFormat | None = None) -> list[Path]:
+def extract_textures_by_format(tex_path: Path, output_dir: Path | None = None, target_format: TextureFormat | None = None, overwrite: bool = False) -> list[Path]:
     """Extract textures of a specific format from a TEX file."""
     if output_dir is None:
         output_dir = tex_path.parent
     else:
         output_dir = Path(output_dir)
     
+    output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     
     info = parse_tex_package(tex_path)
     
     extracted: list[Path] = []
-    base_name = tex_path.stem
+    base_name = sanitize_filename(tex_path.stem)
     count = 0
     
     for texture in info.textures:
         if target_format is None or texture.format == target_format:
-            ext = texture.format.value
-            output_path = output_dir / f"{base_name}_{count}_{texture.width}x{texture.height}.{ext}"
+            safe_ext = sanitize_extension(texture.format.value)
+            output_path = (output_dir / f"{base_name}_{count}_{texture.width}x{texture.height}.{safe_ext}").resolve()
+            
+            if not str(output_path).startswith(str(output_dir)):
+                raise ValueError(f"Invalid output path: {output_path}")
+            
+            if not overwrite and output_path.exists():
+                continue
             
             with open(output_path, "wb") as f:
                 f.write(texture.data)

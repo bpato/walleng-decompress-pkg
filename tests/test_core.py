@@ -223,3 +223,84 @@ class TestExtractPackage:
             assert (Path(tmp_dir) / "custom_root" / "file.txt").exists()
         
         pkg_path.unlink()
+
+
+class TestSecurity:
+    """Security-related tests."""
+    
+    def test_path_traversal_blocked(self):
+        """Test that path traversal attempts are blocked."""
+        from walleng_pkg.core import sanitize_path
+        
+        with pytest.raises(ValueError, match="path traversal"):
+            sanitize_path("../../../etc/passwd")
+        
+        with pytest.raises(ValueError, match="path traversal"):
+            sanitize_path("/absolute/path")
+        
+        assert sanitize_path("normal/file.txt") == "normal/file.txt"
+        assert sanitize_path("file.txt") == "file.txt"
+    
+    def test_malicious_filename_blocked(self):
+        """Test that packages with malicious filenames are rejected."""
+        from walleng_pkg.core import parse_package
+        
+        malicious_pkg = create_test_pkg([("../escape.txt", b"malicious")])
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pkg") as pkg_file:
+            pkg_file.write(malicious_pkg)
+            pkg_file.flush()
+            pkg_path = Path(pkg_file.name)
+        
+        with pytest.raises(ValueError, match="path traversal"):
+            parse_package(pkg_path)
+        
+        pkg_path.unlink()
+    
+    def test_extraction_stays_in_base_path(self):
+        """Test that extraction cannot write outside output directory."""
+        pkg_data = create_test_pkg([("file.txt", b"Data")])
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pkg") as pkg_file:
+            pkg_file.write(pkg_data)
+            pkg_file.flush()
+            pkg_path = Path(pkg_file.name)
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            info = parse_package(pkg_path)
+            
+            info.root = "legitimate"
+            info.files[0].name = "normal.txt"
+            extract_files(info, pkg_path, output_dir)
+            
+            assert (output_dir / "legitimate" / "normal.txt").exists()
+        
+        pkg_path.unlink()
+    
+    def test_overwrite_parameter(self):
+        """Test the overwrite parameter."""
+        pkg_data = create_test_pkg([("file.txt", b"Original")])
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pkg") as pkg_file:
+            pkg_file.write(pkg_data)
+            pkg_file.flush()
+            pkg_path = Path(pkg_file.name)
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            
+            extract_package(pkg_path, output_dir)
+            assert (output_dir / "test_output" / "file.txt").read_bytes() == b"Original"
+            
+            pkg_data2 = create_test_pkg([("file.txt", b"Modified")])
+            with open(pkg_path, "wb") as f:
+                f.write(pkg_data2)
+            
+            extract_package(pkg_path, output_dir, overwrite=False)
+            assert (output_dir / "test_output" / "file.txt").read_bytes() == b"Original"
+            
+            extract_package(pkg_path, output_dir, overwrite=True)
+            assert (output_dir / "test_output" / "file.txt").read_bytes() == b"Modified"
+        
+        pkg_path.unlink()
